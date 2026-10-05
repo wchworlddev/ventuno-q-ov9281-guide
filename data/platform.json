@@ -1,0 +1,12 @@
+{
+  "kernel": "6.8.0-1084-qcom",
+  "ubuntu_source_version": "6.8.0-1084.89",
+  "hardware_properties_sha256": "41112c2219340c568cba1ecbc1a41dabc3e8ddee414ff9580a335c7065941358",
+  "grub_layout_sha256": "236585018b6e607333fa8d9eed826ca13a35b3a34143e3a4cfc03817dc90e81b",
+  "stock_camss_sha256": "938f1e295c58b9cc0fda313874d546dba5081cb2efa7a9a65dae79f684501ba9",
+  "stock_srcversion": "6836E35C0AA1F2FCD21FCBD",
+  "patched_srcversion": "F14F930B442433995EE9249",
+  "grub_device": "/dev/mmcblk0p71",
+  "overlay_sha256": "9c48eb31994a52dae9bd69c232831ea672cb942d0d3f67af862d251d8a1e9158",
+  "patch_sha256": "7e20525437ece9c5487ac4bc213228499d8b841df4502b3efdb88dc413b0d691"
+}

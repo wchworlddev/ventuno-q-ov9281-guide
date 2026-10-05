@@ -1,0 +1,13 @@
+build/
+captures/
+__pycache__/
+*.pyc
+*.ko
+*.dtb
+*.dtbo
+*.raw
+*.pgm
+*.png
+*.deb
+*.tar.*
+*.diff.gz

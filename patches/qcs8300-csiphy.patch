@@ -1,0 +1,18 @@
+--- a/drivers/media/platform/qcom/camss/camss-csiphy-3ph-1-0.c
++++ b/drivers/media/platform/qcom/camss/camss-csiphy-3ph-1-0.c
+@@ -601,6 +601,7 @@
+ 		r = &lane_regs_sdm845[0][0];
+ 		array_size = ARRAY_SIZE(lane_regs_sdm845[0]);
+ 		break;
++	case CAMSS_8300:
+ 	case CAMSS_8775P:
+ 		r = &lane_regs_sa8775p[0];
+ 		array_size = ARRAY_SIZE(lane_regs_sa8775p);
+@@ -650,6 +651,7 @@
+ 	case CAMSS_8250:
+ 	case CAMSS_8280XP:
+ 	case CAMSS_845:
++	case CAMSS_8300:
+ 	case CAMSS_8775P:
+ 		ret = true;
+ 		break;

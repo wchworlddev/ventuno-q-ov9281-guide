@@ -1,0 +1,75 @@
+{
+  "provenance": "Measurements from the original successful CAMERA0 session; generated from its saved capture summaries.",
+  "platform": {
+    "board": "Arduino VENTUNO Q",
+    "os": "Ubuntu 24.04.5 LTS",
+    "kernel": "6.8.0-1084-qcom",
+    "source": "linux-qcom 6.8.0-1084.89",
+    "sensor": "InnoMaker CAM-MIPI9281RAW-V2 / OV9281",
+    "connector": "CAMERA0"
+  },
+  "capture": {
+    "width": 1280,
+    "height": 800,
+    "format": "GREY / RAW8",
+    "requested_fps": 144,
+    "observed_fps": 143.97720714656035,
+    "complete_saved_frames": 720,
+    "sequence_gaps": [],
+    "full_payload_per_frame_bytes": 1024000,
+    "intervals_ms": {
+      "minimum": 6.160000000136279,
+      "maximum": 7.648000000017419,
+      "mean": 6.94554381084819,
+      "stdev": 0.2765599939916713
+    },
+    "sensor_controls": {
+      "exposure": 150,
+      "horizontal_flip": 1,
+      "vertical_flip": 1,
+      "vertical_blanking": 115,
+      "horizontal_blanking": 176,
+      "analogue_gain": 224
+    },
+    "timestamp_basis": "Kernel monotonic EOF timestamps; not exposure-start timestamps",
+    "test_limit": "Short captures of approximately five seconds each; long-duration operation not qualified"
+  },
+  "restoration": {
+    "previous_controls": {
+      "exposure": 2500,
+      "horizontal_flip": 1,
+      "vertical_flip": 1,
+      "vertical_blanking": 4000,
+      "horizontal_blanking": 176,
+      "analogue_gain": 32
+    },
+    "after_controls": {
+      "exposure": 2500,
+      "horizontal_flip": 1,
+      "vertical_flip": 1,
+      "vertical_blanking": 4000,
+      "horizontal_blanking": 176,
+      "analogue_gain": 32
+    },
+    "exact_match": true,
+    "confirmed_capture_fps": 27.48482445047611,
+    "confirmation_frames": 8,
+    "confirmation_sequence_gaps": [],
+    "temporary_bulk_raw_deleted": true,
+    "original_installed_driver_unchanged": true
+  },
+  "global_shutter": {
+    "manufacturer_specification": "Global shutter / OmniPixel3-GS",
+    "external_trigger_tested": false,
+    "optical_motion_check": "Second capture shows repeated movement of a rectangular card in the left half of the image. Sampled card edges show no obvious rolling-shutter skew.",
+    "conclusion": "Observed moving-card images are qualitatively consistent with the specified native global shutter. This test does not independently measure simultaneous row exposure.",
+    "trigger_sync_verified": false
+  },
+  "module_validation": {
+    "stock_srcversion": "6836E35C0AA1F2FCD21FCBD",
+    "patched_srcversion": "F14F930B442433995EE9249",
+    "matching_symbol_crcs": 146,
+    "stock_rebuild_matches_stock": true,
+    "patched_abi_matches_stock": true
+  }
+}

@@ -1,0 +1,117 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Camera routing adapted from Qualcomm's VENTUNO Q camera overlay:
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ * https://github.com/qualcomm-linux/kernel-topics/commit/10a66404c1056d28d6f0e7bb3453ede44c79b58d
+ *
+ * Candidate for Ubuntu linux-qcom 6.8.0-1084.89 and CAM-MIPI9281RAW-V2.
+ * Compile and apply OFFLINE; the stock kernel has no CONFIG_OF_OVERLAY.
+ * The InnoMaker manual marks J1 pins 11 and 12 unconnected. Consequently
+ * no reset/enable GPIO is assigned. Its on-board oscillator is represented
+ * by a fixed clock, matching Qualcomm's connector example. Sensor supplies
+ * are not connected to host PMIC rails: the module receives connector 3.3 V.
+ * Missing sensor supplies use the kernel's dummy regulators during bring-up.
+ * Do not load the downstream camera_qcs8300 stack alongside qcom-camss.
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+    compatible = "arduino,monza", "qcom,monaco-monza", "qcom,qcs8300";
+
+    fragment@0 {
+        target-path = "/clocks";
+        __overlay__ {
+            ov9281_cam24m: ov9281-camera0-clock {
+                compatible = "fixed-clock";
+                #clock-cells = <0>;
+                clock-frequency = <24000000>;
+                clock-output-names = "ov9281-camera0-24m";
+            };
+        };
+    };
+
+    fragment@1 {
+        target-path = "/soc@0";
+        __overlay__ {
+            #address-cells = <2>;
+            #size-cells = <2>;
+
+            /* CCI0 is absent from this Ubuntu firmware device tree.
+             * IRQ and routing match Qualcomm monaco.dtsi. Clock IDs match
+             * this kernel's qcom,sa8775p-camcc.h: CPAS_AHB=13, CCI0=4.
+             * Only master 0 pins are enabled; master 1 remains unused.
+             */
+            ov9281_cci0: cci@ac13000 {
+                compatible = "qcom,qcs8300-cci", "qcom,msm8996-cci";
+                reg = <0 0x0ac13000 0 0x1000>;
+                interrupt-parent = <&intc>;
+                interrupts = <0 460 1>;
+                clocks = <&camcc 13>, <&camcc 4>;
+                clock-names = "ahb", "cci";
+                power-domains = <&camcc 0>;
+                pinctrl-0 = <&cci0_0_default>;
+                pinctrl-1 = <&cci0_0_sleep>;
+                pinctrl-names = "default", "sleep";
+                #address-cells = <1>;
+                #size-cells = <0>;
+                status = "okay";
+
+                i2c-bus@0 {
+                    reg = <0>;
+                    clock-frequency = <400000>;
+                    #address-cells = <1>;
+                    #size-cells = <0>;
+
+                    ov9281_camera0: sensor@60 {
+                        compatible = "ovti,ov9281";
+                        reg = <0x60>;
+                        clocks = <&ov9281_cam24m>;
+                        clock-names = "xvclk";
+                        status = "okay";
+
+                        port {
+                            ov9281_camera0_ep: endpoint {
+                                remote-endpoint = <&ov9281_csiphy0_ep>;
+                                clock-lanes = <0>;
+                                data-lanes = <1 2>;
+                                link-frequencies = /bits/ 64 <400000000>;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+    };
+
+    fragment@2 {
+        target = <&camss>;
+        __overlay__ {
+            status = "okay";
+            vdda-phy-supply = <&vreg_l4a>;
+            vdda-pll-supply = <&vreg_l5a>;
+            ports {
+                #address-cells = <1>;
+                #size-cells = <0>;
+                port@0 {
+                    reg = <0>;
+                    ov9281_csiphy0_ep: endpoint {
+                        /* QCOM lane numbering from the tested IMX219
+                         * connector example differs from sensor numbering.
+                         */
+                        data-lanes = <0 1>;
+                        remote-endpoint = <&ov9281_camera0_ep>;
+                    };
+                };
+            };
+        };
+    };
+
+    fragment@3 {
+        target-path = "/soc@0/qcom,cci0@ac13000";
+        __overlay__ {
+            status = "disabled";
+        };
+    };
+};
