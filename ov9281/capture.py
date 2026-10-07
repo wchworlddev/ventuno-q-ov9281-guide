@@ -11,7 +11,10 @@ import signal
 import subprocess
 import tempfile
 
-from .common import PLATFORM, ROOT, command, program, require, sensor_client, test_session
+from .common import (
+    BOOT, BUILD, PLATFORM, ROOT, boot_id, command, program, protected_file,
+    require, sensor_client, sha256, test_session, write_json,
+)
 from .kernel import loaded_version
 
 WIDTH, HEIGHT = 1280, 800
@@ -20,6 +23,15 @@ CONTROLS = ('vertical_blanking', 'horizontal_blanking', 'exposure', 'analogue_ga
             'horizontal_flip', 'vertical_flip')
 NORMAL = dict(vertical_blanking=4000, horizontal_blanking=176, exposure=2500,
               analogue_gain=32, horizontal_flip=1, vertical_flip=1)
+
+
+def media_entities(graph):
+    entities = {}
+    for block in graph.split('\n- entity ')[1:]:
+        match = re.match(r'\d+: (.*?) \(', block)
+        if match:
+            entities[match.group(1)] = block
+    return entities
 
 
 def discover():
@@ -33,11 +45,7 @@ def discover():
             controllers.append((str(node), graph))
     require(len(controllers) == 1, 'Expected one CAMSS media controller.')
     media, graph = controllers[0]
-    entities = {}
-    for block in graph.split('\n- entity ')[1:]:
-        match = re.match(r'\d+: (.*?) \(', block)
-        if match:
-            entities[match.group(1)] = block
+    entities = media_entities(graph)
     names = [name for name in entities if re.fullmatch(r'ov9281 \d+-0060', name)]
     require(len(names) == 1, 'Expected one OV9281 sensor in the capture graph.')
     name = names[0]
@@ -81,15 +89,28 @@ def configure(pipeline):
         f'"{entity}":{pad} [fmt:Y8_1X8/{WIDTH}x{HEIGHT} field:none]' for entity, pad in pads))
     command(program('v4l2-ctl'), '-d', pipeline['video'],
             f'--set-fmt-video=width={WIDTH},height={HEIGHT},pixelformat=GREY')
+    verify_format(pipeline)
+
+
+def verify_format(pipeline):
     text = command(program('v4l2-ctl'), '-d', pipeline['video'], '--get-fmt-video')
     require("'GREY'" in text and re.search(r'Width/Height\s+: 1280/800', text)
             and re.search(r'Bytes per Line\s+: 1280\b', text), 'Negotiated RAW8 format differs.')
+
+
+def verify_route(pipeline):
+    entities = media_entities(command(program('media-ctl'), '-d', pipeline['media'], '-p'))
+    for source, target in ((pipeline['sensor_entity'], 'msm_csiphy0'),
+                           ('msm_csiphy0', 'msm_csid0'), ('msm_csid0', 'msm_vfe0_rdi0')):
+        pattern = r'-> "' + re.escape(target) + r'":0 \[ENABLED(?:,[^]]*)?\]'
+        require(re.search(pattern, entities.get(source, '')), f'Real sensor route is not enabled: {source} -> {target}')
 
 
 def configure_normal():
     pipeline = discover()
     configure(pipeline)
     restore_controls(pipeline, NORMAL)
+    verify_route(pipeline)
     return dict(pipeline, controls=controls(pipeline), configured=True, capture_started=False)
 
 
@@ -166,10 +187,42 @@ def capture(frames=8, output=None):
     pipeline = discover()
     configure(pipeline)
     restore_controls(pipeline, NORMAL)
+    verify_route(pipeline)
     output = result_directory(output)
     report = dict(pipeline, width=WIDTH, height=HEIGHT, format='GREY / RAW8', controls=controls(pipeline))
     report.update(stream(pipeline, frames, 2, output))
-    (output / 'result.json').write_text(json.dumps(report, indent=2) + '\n')
+    write_json(output / 'result.json', report)
+    require(report['success'], f'Capture did not complete: {output / "result.json"}')
+    write_json(BUILD / 'normal-capture.json', {
+        'boot_id': boot_id(), 'success': True, 'width': WIDTH, 'height': HEIGHT,
+        'controls': controls(pipeline), 'candidate_sha256': sha256(BUILD / 'qcom-camss-ov9281.ko'),
+        'frames': frames, 'sequence_gaps': report['sequence_gaps'],
+    })
+    return dict(report, output=str(output))
+
+
+def capture_ready(frames=8, output=None):
+    """Verify startup using its existing graph, format and controls."""
+    require(1 <= frames <= 32, 'Normal capture accepts 1..32 frames.')
+    record = BOOT / 'last-startup.json'
+    protected_file(record)
+    saved = json.loads(record.read_text())
+    require(saved['boot_id'] == boot_id() and saved['configuration_verified']
+            and saved['boot_health_flag_cleared'], 'Automatic startup has not completed for this boot.')
+    status = command(program('systemctl'), 'show', 'ov9281-guide-camera.service',
+                     '-p', 'ActiveState', '-p', 'SubState', '-p', 'Result')
+    require(set(status.splitlines()) == {'ActiveState=active', 'SubState=exited', 'Result=success'},
+            'Startup service has not completed successfully.')
+    pipeline = discover()
+    require(pipeline == saved['pipeline'], 'Current camera graph differs from startup.')
+    verify_format(pipeline)
+    verify_route(pipeline)
+    require(controls(pipeline) == NORMAL == saved['controls'], 'Startup controls differ.')
+    output = result_directory(output)
+    report = dict(pipeline, boot_id=boot_id(), configuration_changed=False,
+                  width=WIDTH, height=HEIGHT, format='GREY / RAW8', controls=controls(pipeline))
+    report.update(stream(pipeline, frames, 2, output))
+    write_json(output / 'result.json', report)
     require(report['success'], f'Capture did not complete: {output / "result.json"}')
     return dict(report, output=str(output))
 
@@ -199,7 +252,7 @@ def benchmark(frames=720, output=None):
             report['restored_controls'] = controls(pipeline)
             report['controls_restored_exactly'] = report['restored_controls'] == saved
         finally:
-            (output / 'result.json').write_text(json.dumps(report, indent=2) + '\n')
+            write_json(output / 'result.json', report)
     require(report.get('success'), f'Benchmark did not complete: {output / "result.json"}')
     require(report['observed_fps'] is not None and 142 <= report['observed_fps'] <= 146,
             f'Frames arrived but measured rate differs from 144 fps: {output / "result.json"}')

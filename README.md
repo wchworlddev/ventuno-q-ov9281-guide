@@ -1,6 +1,6 @@
 # OV9281 on Arduino VENTUNO Q with Ubuntu
 
-A reproducible guide to the **successful CAMERA0 bring-up** of an InnoMaker
+A source guide to the **successful CAMERA0 bring-up and automatic startup** of an InnoMaker
 CAM-MIPI9281RAW-V2 monochrome camera on VENTUNO Q. The sensor is **OV9281**;
 “OV9821” is a name mix-up. This port uses Ubuntu's `ov9282` sensor driver,
 which also supports OV9281, and a two-line correction to Qualcomm CAMSS.
@@ -8,6 +8,12 @@ which also supports OV9281, and a two-line correction to Qualcomm CAMSS.
 The original setup captured 1280 × 800 RAW8 images at **143.98 fps** in a
 short test, then restored normal settings and captured eight more images
 at approximately **27.5 fps**. See [successful results](docs/RESULTS.md).
+
+With a replacement ribbon, CAMERA0 also initialized automatically on two
+ordinary reboots and captured eight complete RAW8 frames after each, at
+**27.47 fps**, without manual driver loading or camera configuration.
+The startup discovery workaround and recovery procedure are covered in
+[automatic startup](docs/STARTUP.md).
 
 ## Supported setup
 
@@ -25,9 +31,14 @@ The compatibility checks are intentionally scoped to this Ubuntu build.
 A different kernel, firmware hardware layout or GRUB layout requires a new
 review and module build. Do not bypass a failed check or force a module load.
 
-The measurements apply to the original successful implementation. These
-helpers are its refactored, source-only version; the complete refactored
-workflow has not been revalidated with functioning camera hardware.
+The measurements are from the working board implementation. These helpers
+are its refactored, source-only version, including the subsequently verified
+startup logic. The complete refactored workflow has **not been rerun on a
+fresh board**. Compatibility checks stop on an unfamiliar layout.
+
+If the camera is already working with `/usr/local/lib/ov9281-camera/manage.py`,
+use the [existing-installation instructions](docs/STARTUP.md#the-board-already-configured-during-this-work).
+Do not run a second installer over that setup.
 
 ## 1. Connect the camera
 
@@ -57,7 +68,8 @@ cd ventuno-q-ov9281-guide
 matching headers. If the exact headers are unavailable from your configured
 Ubuntu repositories, stop rather than substituting a different kernel.
 The prerequisite command installs tools and headers; it does not replace
-the running kernel or install the patched capture driver.
+the running kernel or install the patched capture driver. Standard Ubuntu
+`systemd`, `udevadm`, `kmod` and GRUB utilities must also be available.
 
 ## 3. Build the temporary CAMSS correction
 
@@ -86,6 +98,9 @@ layout and environment. It builds a candidate from **this board's firmware
 device tree** and verifies that only the reviewed camera properties change.
 It preserves the main GRUB menu, kernel, initrd and default Ubuntu entry.
 It creates an optional CAMERA0 entry and selects it for **one boot only**.
+Before the camera boot, it installs a checked local video-discovery rule
+that avoids premature `v4l_id` opens of CAMSS nodes. Ubuntu's original rule
+is preserved; `cleanup-boot` removes this guide's override.
 
 Only when the command reports `selected_for_one_boot: true`, run:
 
@@ -111,7 +126,9 @@ The sensor must already be bound to `ov9282`. If sensor initialization fails,
 stop here; the capture steps require a responding sensor. The loader checks
 the build record and uses ordinary module operations. It reloads stock
 dependencies before `insmod`, avoiding the missing DMA dependency encountered
-during the original bring-up. It does not install the module or start a stream.
+during the original bring-up. It verifies the discovery guard and refuses
+driver operations after a kernel Oops. It does not replace the installed
+Ubuntu module or start a stream.
 
 The original unsigned module was used with Secure Boot disabled and kernel
 lockdown inactive. The helper does not change either setting. A locked-down
@@ -166,15 +183,51 @@ The capture process has a timeout. Bulk raw data is deleted, and the saved
 normal controls are restored in `finally`, including interruption and failure
 paths. Blanking is restored **before** exposure to avoid exposure clamping.
 The final normal capture checks that the camera still works after the test.
-Hard termination or power loss cannot execute Python cleanup; a reboot
-returns to the stock boot configuration and drivers.
+Hard termination or power loss cannot execute Python cleanup. A restart
+after a one-time test returns to stock Ubuntu. If automatic startup is
+enabled, a successful restart reapplies the normal camera controls.
 
 The original 144 fps result was a short measurement, not a qualification of
 continuous operation. The moving-card images were consistent with the
 manufacturer's global shutter specification; external triggering and
 quantitative row-exposure timing were not measured.
 
-## 8. Remove the temporary boot setup
+## 8. Optional automatic startup
+
+After a successful normal capture in the current one-time boot:
+
+```bash
+sudo python3 camera.py enable-startup
+sudo reboot
+```
+
+After reboot:
+
+```bash
+cd ~/ventuno-q-ov9281-guide
+sudo python3 camera.py startup-status
+python3 camera.py capture-ready --frames 8
+```
+
+`capture-ready` reads the startup configuration and captures without changing
+links, formats or controls. Check `success: true`, eight complete frames and
+no sequence gaps, then repeat an ordinary reboot and this capture check.
+Inspect a saved PGM to confirm it shows the actual scene.
+
+Startup uses the normal ~27.5 fps settings. It does not start streaming or
+enable the 144 fps benchmark. A failed startup leaves the next boot set to
+stock Ubuntu; a kernel update disables automatic camera boot pending review.
+See [startup, recovery, and camera removal](docs/STARTUP.md) for details.
+
+## 9. Remove the boot setup
+
+If automatic startup was installed, remove it first:
+
+```bash
+sudo python3 camera.py remove-startup
+```
+
+Then remove the temporary boot entry and discovery override:
 
 ```bash
 sudo python3 camera.py cleanup-boot
@@ -182,11 +235,11 @@ sudo reboot
 ```
 
 Cleanup verifies ownership of the guide's recorded menu before removing the
-optional entry and its staged device tree. It leaves the active session alone;
+optional entry, discovery override and staged device tree. It leaves the active session alone;
 the restart restores the stock device tree and installed drivers. Keep the
 checkout and local build/capture outputs only if you want to reuse them.
 
-To repeat a test before cleanup, use `sudo python3 camera.py repeat-boot`,
+To repeat a one-time test before installing automatic startup, use `sudo python3 camera.py repeat-boot`,
 then `sudo reboot`. To restore just the stock capture module within an idle
 test session, use `sudo python3 camera.py restore-driver`.
 
@@ -195,7 +248,7 @@ test session, use `sudo python3 camera.py restore-driver`.
 | Path | Purpose |
 | --- | --- |
 | `camera.py` | Single command-line entry point |
-| `ov9281/` | Shared boot, build, validation and capture helpers |
+| `ov9281/` | Shared build, boot, discovery, startup and capture helpers |
 | `overlays/` | Reviewed CAMERA0 overlay source |
 | `patches/` | CAMSS QCS8300 receiver correction |
 | `data/` | Compatibility fingerprints and sanitized successful measurements |
@@ -203,13 +256,16 @@ test session, use `sudo python3 camera.py restore-driver`.
 
 Generated binaries, firmware blobs, captures and local logs are ignored by
 Git. The guide covers the demonstrated single CAMERA0 setup. Simultaneous
-CAMERA1/2 capture and persistent startup were not qualified by the successful
-session and are not implemented here.
+CAMERA1/2 capture is not implemented or qualified. The public evidence is
+sanitized measurement data; captured room photographs and private logs are
+kept outside the repository.
 
 ## Further reading
 
 - [How the port works](docs/PORTING.md)
 - [Successful capture measurements](docs/RESULTS.md)
+- [Automatic startup and recovery](docs/STARTUP.md)
+- [Troubleshooting](docs/TROUBLESHOOTING.md)
 - [Primary sources and pinned source archives](docs/SOURCES.md)
 
 Original helper code and documentation are MIT licensed. The overlay retains

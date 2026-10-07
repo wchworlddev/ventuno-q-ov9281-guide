@@ -6,6 +6,7 @@ from pathlib import Path
 import time
 
 from .build import modinfo
+from . import discovery
 from .common import (
     BUILD, PLATFORM, STOCK_MODULE,
     command, program, require, root_required, sensor_client, sha256, test_session,
@@ -27,10 +28,18 @@ def idle():
         time.sleep(0.2)
 
 
+def healthy_kernel():
+    text = command(program('dmesg'))
+    require('Internal error: Oops' not in text and 'Unable to handle kernel NULL' not in text,
+            'This kernel has faulted. Do not unload or reload drivers; use recovery reboot.')
+
+
 def load():
     root_required()
     test_session()
     sensor_client()
+    healthy_kernel()
+    discovery.verify()
     require(sha256(STOCK_MODULE) == PLATFORM['stock_camss_sha256'], 'Installed stock module differs.')
     candidate = BUILD / 'qcom-camss-ov9281.ko'
     metadata = json.loads((BUILD / 'driver.json').read_text())
@@ -49,6 +58,7 @@ def load():
     require(old in (None, PLATFORM['stock_srcversion'], PLATFORM['patched_srcversion']), 'Unreviewed CAMSS module is loaded.')
     if old == PLATFORM['patched_srcversion']:
         require(Path('/sys/bus/platform/devices/ac7a000.isp/driver').resolve().name == 'qcom-camss', 'CAMSS is not bound.')
+        idle()
         return {'corrected_camss_loaded': True, 'already_loaded': True, 'installed': False}
     idle()
     if old is not None:
@@ -62,6 +72,7 @@ def load():
         require(Path('/sys/bus/platform/devices/ac7a000.isp/driver').resolve().name == 'qcom-camss', 'CAMSS did not bind.')
         idle()
     except BaseException:
+        healthy_kernel()
         if loaded_version() == PLATFORM['patched_srcversion']:
             idle()
             command(program('modprobe'), '-r', 'qcom-camss')
@@ -74,6 +85,8 @@ def load():
 def restore():
     root_required()
     test_session()
+    healthy_kernel()
+    discovery.verify()
     require(sha256(STOCK_MODULE) == PLATFORM['stock_camss_sha256'], 'Installed stock module differs.')
     version = loaded_version()
     require(version in (None, PLATFORM['stock_srcversion'], PLATFORM['patched_srcversion']), 'Unreviewed CAMSS module is loaded.')

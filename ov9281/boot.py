@@ -14,6 +14,7 @@ from .common import (
     command, program, protected_file, require, reviewed_kernel, root_required, sha256,
 )
 from .dtree import build_candidate, read_fdt
+from . import discovery
 
 VOLATILE = {
     '/serial-number', '/chosen/bootargs', '/chosen/linux,initrd-start',
@@ -59,6 +60,9 @@ def inspect():
         'optional_menu_unused': not MENU.exists() and not MENU.is_symlink(),
         'test_directory_unused': not BOOT.exists() and not BOOT.is_symlink(),
         'no_earlier_persistent_port': not Path('/usr/local/lib/ov9281-camera').exists(),
+        'no_guide_startup_installation': not Path('/usr/local/lib/ov9281-guide').exists(),
+        'reviewed_video_discovery': sha256(discovery.VENDOR) == PLATFORM['udev_rule_sha256'],
+        'video_discovery_override_unused': not discovery.OVERRIDE.exists() and not discovery.OVERRIDE.is_symlink(),
         'no_pending_grub_state': not any(environment().values()),
         'regular_allocated_grub_environment': stat.S_ISREG(info.st_mode) and info.st_uid == 0
             and info.st_size == 1024 and info.st_blocks * 512 >= 1024,
@@ -129,12 +133,14 @@ def prepare():
             output.write(text.encode())
             output.flush()
             os.fsync(output.fileno())
-        report.update(menu_sha256=sha256(MENU), candidate_sha256=validation['candidate_sha256'])
+        report.update(menu_sha256=sha256(MENU), candidate_sha256=validation['candidate_sha256'],
+                      stock_arguments=' '.join(words), camera_arguments=arguments)
         with (BOOT / 'state.json').open('x') as output:
             os.fchmod(output.fileno(), 0o644)
             output.write(json.dumps(report, indent=2) + '\n')
             output.flush()
             os.fsync(output.fileno())
+        discovery.install()
         command(program('grub-reboot'), ENTRY)
         require(environment() == {'next_entry': ENTRY}, 'One-time selection differs.')
         os.sync()
@@ -143,6 +149,7 @@ def prepare():
         # Keep the candidate/menu intact if cancellation fails, so recovery
         # remains possible rather than deleting a still-selected entry.
         cancel_own_selection()
+        discovery.remove()
         if created_menu:
             require(MENU.is_file() and not MENU.is_symlink() and MENU.read_text() == text,
                     'The optional menu changed; staged files retained for manual review.')
@@ -170,6 +177,7 @@ def repeat():
     record = state()
     require(root_uuid() == record['root_uuid'] and not any(environment().values()), 'Root disk or pending GRUB state differs.')
     require(sha256(BOOT / 'candidate/camera0-ov9281-candidate.dtb') == record['candidate_sha256'], 'Candidate differs.')
+    discovery.verify()
     try:
         command(program('grub-reboot'), ENTRY)
         require(environment() == {'next_entry': ENTRY}, 'One-time selection differs.')
@@ -182,7 +190,10 @@ def repeat():
 
 def cleanup():
     state()
+    require(not (BOOT / 'startup.json').exists() and not Path('/usr/local/lib/ov9281-guide').exists(),
+            'Remove automatic startup first with remove-startup.')
     cancel_own_selection()
+    discovery.remove()
     MENU.unlink()
     shutil.rmtree(BOOT)
     os.sync()

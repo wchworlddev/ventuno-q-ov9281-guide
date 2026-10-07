@@ -8,6 +8,7 @@ from pathlib import Path
 import shutil
 import stat
 import subprocess
+import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 PLATFORM = json.loads((ROOT / 'data/platform.json').read_text())
@@ -19,6 +20,7 @@ GRUB = Path('/boot/grub/grub.cfg')
 GRUBENV = Path('/boot/grub/grubenv')
 ENTRY = 'ov9281-guide-camera0'
 MARKER = 'ov9281_guide_test=1'
+PERSIST_MARKER = 'ov9281_guide_persistent=1'
 STOCK_MODULE = Path('/lib/modules') / KERNEL / 'kernel/drivers/media/platform/qcom/camss/qcom-camss.ko.zst'
 VENDOR_MODULES = ('camera_qcs8300', 'camera_qcs9100', 'camera_qcm6490')
 
@@ -58,6 +60,39 @@ def protected_file(path):
     info = Path(path).lstat()
     require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and not info.st_mode & 0o022,
             f'Expected a protected regular root-owned file: {path}')
+
+
+def protected_directory(path):
+    info = Path(path).lstat()
+    require(stat.S_ISDIR(info.st_mode) and info.st_uid == 0 and not info.st_mode & 0o022,
+            f'Expected a protected root-owned directory: {path}')
+
+
+def atomic_write(path, content, mode=0o644):
+    """Replace one file without following a destination symlink."""
+    path = Path(path)
+    require(not path.is_symlink(), f'Refusing a symlink: {path}')
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=path.parent, prefix='.ov9281-', delete=False) as output:
+            temporary = Path(output.name)
+            os.fchmod(output.fileno(), mode)
+            output.write(content.encode() if isinstance(content, str) else content)
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temporary, path)
+        temporary = None
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
+def write_json(path, value):
+    atomic_write(path, json.dumps(value, indent=2) + '\n')
+
+
+def boot_id():
+    return Path('/proc/sys/kernel/random/boot_id').read_text().strip()
 
 
 def reviewed_kernel():

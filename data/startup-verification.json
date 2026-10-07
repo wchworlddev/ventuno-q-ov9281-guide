@@ -1,0 +1,60 @@
+{
+  "provenance": "Sanitized October 7, 2026 measurements from the working CAMERA0 installation; the refactored public installer was not rerun on fresh hardware.",
+  "platform": {
+    "board": "Arduino VENTUNO Q",
+    "sensor": "InnoMaker OV9281",
+    "connector": "CAMERA0",
+    "kernel": "6.8.0-1084-qcom"
+  },
+  "startup_configuration": {
+    "width": 1280,
+    "height": 800,
+    "format": "GREY / RAW8",
+    "normal_controls": {
+      "vertical_blanking": 4000,
+      "horizontal_blanking": 176,
+      "exposure": 2500,
+      "analogue_gain": 32,
+      "horizontal_flip": 1,
+      "vertical_flip": 1
+    },
+    "streaming_started_by_service": false
+  },
+  "ordinary_reboots": [
+    {
+      "index": 1,
+      "startup_service_succeeded": true,
+      "current_boot_configuration_verified": true,
+      "boot_health_flag_cleared": true,
+      "complete_saved_frames": 8,
+      "payload_per_frame_bytes": 1024000,
+      "sequence_gaps": 0,
+      "observed_fps": 27.465233591810726,
+      "manual_configuration_needed": false,
+      "camera_kernel_oops_observed": false,
+      "sensor_initialization_error_observed": false,
+      "streaming_stopped_after_capture": true
+    },
+    {
+      "index": 2,
+      "startup_service_succeeded": true,
+      "current_boot_configuration_verified": true,
+      "boot_health_flag_cleared": true,
+      "complete_saved_frames": 8,
+      "payload_per_frame_bytes": 1024000,
+      "sequence_gaps": 0,
+      "observed_fps": 27.466574704505838,
+      "manual_configuration_needed": false,
+      "camera_kernel_oops_observed": false,
+      "sensor_initialization_error_observed": false,
+      "streaming_stopped_after_capture": true
+    }
+  ],
+  "limits": {
+    "fresh_refactored_workflow_hardware_validated": false,
+    "disconnected_camera_boot_tested": false,
+    "multi_camera_tested": false,
+    "sustained_capture_qualified": false,
+    "automatic_high_frame_rate_enabled": false
+  }
+}

@@ -7,6 +7,7 @@
   "stock_srcversion": "6836E35C0AA1F2FCD21FCBD",
   "patched_srcversion": "F14F930B442433995EE9249",
   "grub_device": "/dev/mmcblk0p71",
+  "udev_rule_sha256": "d5a6c72c7c3a50e251f74c15672a47f63674aa12eda64086a7daffa49c4c55f8",
   "overlay_sha256": "9c48eb31994a52dae9bd69c232831ea672cb942d0d3f67af862d251d8a1e9158",
   "patch_sha256": "7e20525437ece9c5487ac4bc213228499d8b841df4502b3efdb88dc413b0d691"
 }

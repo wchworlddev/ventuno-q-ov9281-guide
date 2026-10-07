@@ -36,6 +36,13 @@ source version and ABI before the corrected module is produced.
 - [V4L2 memory mapping](https://docs.kernel.org/userspace-api/media/v4l/mmap.html)
 - [V4L2 multi-planar API](https://docs.kernel.org/userspace-api/media/v4l/planar-apis.html)
 - [V4L2 stream start/stop](https://docs.kernel.org/userspace-api/media/v4l/vidioc-streamon.html)
+- [systemd v255 udev rule ordering and attribute matches](https://github.com/systemd/systemd/blob/v255/man/udev.xml)
+- [systemd v255 udevadm verify and rule reload](https://github.com/systemd/systemd/blob/v255/man/udevadm.xml)
+
+The reviewed board used systemd/udev 255. Its vendor video-discovery rule
+had SHA-256 `d5a6c72c7c3a50e251f74c15672a47f63674aa12eda64086a7daffa49c4c55f8`.
+The workaround uses a local same-name override, checksum checks and syntax
+verification, without altering the packaged rule or triggering new events.
 
 Compatibility fingerprints exclude per-board serial/MAC values and EFI
 boot addresses. The boot candidate keeps the current board's values; it

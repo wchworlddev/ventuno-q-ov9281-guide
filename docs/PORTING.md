@@ -66,6 +66,25 @@ An unused dependency can disappear when `modprobe -r qcom-camss` removes
 the stock driver. Since `insmod` does not resolve dependencies, the helper
 reloads the stock dependency list first, then inserts the correction.
 
+## Device discovery during registration
+
+The exact Ubuntu CAMSS source registers VFE video nodes one line at a time.
+Opening an early node powers the VFE and queries sensor pixel clocks for
+other lines. Before all entities have pads, `camss_find_sensor` can
+dereference an uninitialized pad array. This matches the later observed
+startup fault in `v4l_id` through the CAMSS video-open path.
+
+The discovery helper prevents the automatic identification program from
+opening `msm_vfe*_video*` nodes during registration. It retains Ubuntu's
+discovery logic for other nodes. Waiting for `udevadm settle` afterward is
+still useful for reference counts, but cannot prevent an earlier open.
+See [the checked workaround](STARTUP.md#discovery-workaround).
+
+The same discovery, module loading and camera configuration helpers are
+used by the temporary session and the automatic boot service. The service
+does not start a stream. `capture-ready` verifies what the service configured
+without applying links, formats or controls again.
+
 ## Media graph and frame timing
 
 The working RAW8 route is:

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""Temporary OV9281 CAMERA0 bring-up on the reviewed VENTUNO Q Ubuntu kernel."""
+"""OV9281 CAMERA0 bring-up and optional startup on the reviewed VENTUNO Q."""
 
 import argparse
 import subprocess
@@ -8,7 +8,7 @@ import sys
 
 sys.dont_write_bytecode = True
 
-from ov9281 import boot, build, capture, kernel
+from ov9281 import boot, build, capture, kernel, startup
 from ov9281.common import emit
 
 
@@ -27,19 +27,30 @@ def main():
         'configure': 'Configure RAW8 and normal exposure/blanking without capturing.',
         'capture': 'Capture 1..32 normal frames and save two PGM previews.',
         'benchmark-144': 'Capture at most 720 frames at approximately 144 fps; restore controls.',
+        'capture-ready': 'Verify automatic startup by capturing without reconfiguring the camera.',
+        'enable-startup': 'Install/re-enable CAMERA0 startup after a successful normal capture (sudo).',
+        'startup-status': 'Check protected startup assets and current boot state (sudo).',
+        'disable-startup': 'Select stock Ubuntu on the next restart; keep installed assets (sudo).',
+        'remove-startup': 'Remove automatic startup, retaining the temporary boot setup (sudo).',
+        'startup-configure': 'Internal command for the installed boot service (sudo).',
     }
     for name, description in descriptions.items():
         action = actions.add_parser(name, help=description, description=description)
-        if name in ('capture', 'benchmark-144'):
-            action.add_argument('--frames', type=int, default=8 if name == 'capture' else 720)
+        if name in ('capture', 'capture-ready', 'benchmark-144'):
+            action.add_argument('--frames', type=int, default=720 if name == 'benchmark-144' else 8)
             action.add_argument('--output', help='New directory for PGM previews and result.json.')
     args = parser.parse_args()
     functions = {'inspect': boot.inspect, 'build-driver': build.build_driver,
                  'prepare-boot': boot.prepare, 'repeat-boot': boot.repeat, 'cleanup-boot': boot.cleanup,
                  'load': kernel.load, 'restore-driver': kernel.restore, 'plan': capture.discover,
-                 'configure': capture.configure_normal}
+                 'configure': capture.configure_normal,
+                 'enable-startup': startup.enable, 'startup-status': startup.status,
+                 'disable-startup': startup.disable, 'remove-startup': startup.remove,
+                 'startup-configure': startup.configure}
     if args.action == 'capture':
         result = capture.capture(args.frames, args.output)
+    elif args.action == 'capture-ready':
+        result = capture.capture_ready(args.frames, args.output)
     elif args.action == 'benchmark-144':
         result = capture.benchmark(args.frames, args.output)
     else:
